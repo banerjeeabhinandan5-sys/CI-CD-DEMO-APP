@@ -1,132 +1,96 @@
-# CI/CD Pipeline Demo Project
+![CI/CD Pipeline](https://github.com/banerjeeabhinandan5-sys/CI-CD-DEMO-APP/actions/workflows/ci-cd.yml/badge.svg)
 
-A beginner-friendly project that demonstrates a real CI/CD pipeline using
-**GitHub Actions** + **Docker**. Tests run automatically on every push, and
-if they pass, a Docker image is built and pushed to Docker Hub — with zero
-manual steps.
+# CI/CD Pipeline Demo — Automated Testing & Docker Deployment
 
----
+A hands-on project built to understand how real CI/CD pipelines work — not just in theory, but by actually setting one up from scratch, breaking it, debugging it, and getting it running end-to-end.
 
-## 1. What is CI/CD? (Quick concepts)
-
-- **CI (Continuous Integration):** Every time you push code, it's automatically
-  tested. This catches bugs early, before they reach production.
-- **CD (Continuous Delivery/Deployment):** If tests pass, the code is
-  automatically packaged (here: built into a Docker image) and pushed
-  somewhere ready to deploy.
-- **Pipeline:** The sequence of automated steps (test → build → push → deploy)
-  that runs on every code change.
-- **GitHub Actions:** GitHub's built-in automation tool. You define "workflows"
-  in `.yml` files inside `.github/workflows/`, and GitHub runs them on events
-  like `push` or `pull_request`.
-- **Secrets:** Sensitive values (like passwords/tokens) that you never hardcode.
-  GitHub lets you store them securely and reference them in workflows.
+**Live pipeline:** [View on GitHub Actions](https://github.com/banerjeeabhinandan5-sys/CI-CD-DEMO-APP/actions)
 
 ---
 
-## 2. Project structure
+## What this project does
+
+Every time code is pushed to this repository:
+1. **GitHub Actions automatically runs the test suite** (Jest + Supertest) against a small Node.js/Express app
+2. **If — and only if — all tests pass**, it builds a Docker image of the app
+3. The image is **automatically pushed to Docker Hub**, ready to be pulled and deployed anywhere
+
+No manual testing, no manual building, no manual uploading. Push code, and the pipeline handles the rest.
+
+---
+
+## Why I built this
+
+I wanted to actually *understand* DevOps concepts instead of just reading about them. CI/CD is one of those things that sounds simple in a tutorial but has a lot of small, practical details that only show up when you try to build it yourself — authentication, secrets management, permissions, caching. This project was my way of learning by doing.
+
+---
+
+## Tech stack
+
+- **Node.js + Express** — the sample application
+- **Jest + Supertest** — automated testing
+- **Docker** — containerization
+- **GitHub Actions** — CI/CD automation
+- **Docker Hub** — image registry
+
+---
+
+## Project structure
 
 ```
 ci-cd-demo-app/
-├── index.js                     # Express app
-├── index.test.js                # Jest tests
+├── index.js                     # Express app with two endpoints + a sample function
+├── index.test.js                # Unit and API tests
 ├── package.json
-├── Dockerfile                   # How to containerize the app
+├── package-lock.json
+├── Dockerfile                   # Containerizes the app
 ├── .dockerignore
-└── .github/workflows/ci-cd.yml  # The actual CI/CD pipeline definition
+└── .github/workflows/ci-cd.yml  # The pipeline definition itself
 ```
 
 ---
 
-## 3. Step-by-step: How to set this up yourself
+## What I actually learned building this (not just the theory)
 
-### Step 1 — Create a GitHub repo
-1. Go to github.com → New repository → name it `ci-cd-demo-app`.
-2. Push these files to it:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: CI/CD demo app"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/ci-cd-demo-app.git
-   git push -u origin main
-   ```
+Setting this up wasn't a straight line — most of the real learning happened while fixing things that broke:
 
-### Step 2 — Create a Docker Hub account (free)
-1. Sign up at hub.docker.com.
-2. Go to **Account Settings → Security → New Access Token**.
-3. Copy the generated token (you won't see it again).
+- **Git authentication has changed.** GitHub no longer accepts your account password for `git push` — you need a Personal Access Token, and if your workflow touches files inside `.github/workflows/`, that token specifically needs the **`workflow` scope**, not just `repo`. This isn't obvious until you hit the error.
+- **CI caching needs a lock file.** GitHub Actions' `cache: 'npm'` option fails silently-ish (well, loudly, but confusingly) if there's no `package-lock.json` committed — `package.json` alone isn't enough.
+- **Secrets aren't optional for private services.** The Docker Hub login step fails with "Username and password required" until you explicitly add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` as encrypted secrets in the repo settings — CI runners have zero access to anything outside what you give them.
+- **Jobs can depend on each other.** Using `needs: test` in the workflow means the Docker build/push job simply never runs if tests fail — which is the entire point of CI/CD: broken code never gets packaged.
+- **Reading pipeline logs is a skill in itself.** GitHub Actions gives you a full breakdown per step, and the annotations section usually tells you exactly what's wrong — you just have to know where to look.
 
-### Step 3 — Add secrets to GitHub
-1. In your GitHub repo, go to **Settings → Secrets and variables → Actions**.
-2. Add two secrets:
-   - `DOCKERHUB_USERNAME` → your Docker Hub username
-   - `DOCKERHUB_TOKEN` → the access token from Step 2
+---
 
-### Step 4 — Push and watch it run
-1. Make any small change and push to `main`.
-2. Go to the **Actions** tab in your GitHub repo.
-3. You'll see the pipeline run: first "Run Tests", then "Build and Push Docker Image".
-4. Once it's green ✅, check your Docker Hub — a new image will appear there automatically.
+## How to run it yourself
 
-### Step 5 (optional, bonus) — Test it locally first
 ```bash
+git clone https://github.com/banerjeeabhinandan5-sys/CI-CD-DEMO-APP.git
+cd CI-CD-DEMO-APP
 npm install
-npm test          # run the tests yourself
+npm test              # run the test suite locally
+```
+
+To run it in Docker:
+```bash
 docker build -t ci-cd-demo-app .
 docker run -p 3000:3000 ci-cd-demo-app
 # visit http://localhost:3000
 ```
 
----
-
-## 4. How the pipeline actually works (line by line)
-
-- `on: push / pull_request` → defines *when* the pipeline triggers.
-- **Job 1 (`test`)**: checks out code, installs Node, runs `npm test`.
-  If any test fails, the pipeline stops here — nothing broken ever gets built.
-- **Job 2 (`build-and-push`)**: only runs if Job 1 succeeds (`needs: test`).
-  Logs into Docker Hub using secrets, then builds and pushes the image.
-
-This mirrors what real companies do: **no code reaches production without
-passing tests first.**
+To trigger the pipeline yourself: push any commit to `main` and watch the **Actions** tab.
 
 ---
 
-## 5. Ideas to extend this (great for showing depth in interviews)
+## What I'd add next
 
-- Add a **deploy step** to Render.com or Railway.app (free tiers) so the app
-  actually goes live after the Docker push.
-- Add a **linter** step (ESLint) before tests.
-- Add **code coverage** reporting (Jest has this built in: `jest --coverage`).
-- Add a **Slack/Discord notification** step on pipeline failure.
-- Use a **staging vs production** branch strategy (`dev` → auto-deploys to
-  staging, `main` → auto-deploys to production).
+- A real deployment step (Render/Railway) so the app goes live automatically after the Docker push, not just gets built
+- ESLint as a step before tests
+- Code coverage reporting via `jest --coverage`
+- Branch-based environments — `dev` deploys to staging, `main` deploys to production
 
 ---
 
-## 6. Resume bullet points (copy-paste and tweak)
+## About
 
-- Built and deployed a CI/CD pipeline using **GitHub Actions** and **Docker**
-  that automatically runs unit tests and builds/pushes container images on
-  every code push, eliminating manual build steps.
-- Designed a multi-stage pipeline (test → build → push) with job dependencies
-  to ensure untested code never reaches the deployable image.
-- Containerized a **Node.js/Express** application using Docker, reducing
-  environment inconsistencies between development and production.
-- Managed pipeline secrets securely using GitHub Actions secrets, following
-  standard DevOps security practices.
-
-**Resume title options:**
-- "CI/CD Pipeline for Automated Testing & Containerized Deployment"
-- "Automated Docker Build Pipeline using GitHub Actions"
-
----
-
-## 7. If asked about this in an interview
-
-Be ready to explain, in your own words:
-- Why CI/CD matters (catches bugs early, faster/safer releases)
-- What happens if a test fails (pipeline stops, bad image never gets pushed)
-- Why Docker is used (consistent environment everywhere it runs)
-- What secrets are and why they're not hardcoded in code
+Built by [Abhinandan Banerjee](https://github.com/banerjeeabhinandan5-sys) as a self-directed project to learn CI/CD fundamentals hands-on.
